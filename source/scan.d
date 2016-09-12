@@ -602,3 +602,382 @@ unittest
 	
 	alias TL = fillAliasSeq!(false, int[], int, f, g);
 }
+
+/++
+Provides intermediate steps for the homonym function (also known as 
+$(D accumulate), $(D compress), $(D inject), or $(D foldl)) 
+present in various programming languages of functional flavor. 
+
+The call $(D scan!(fun)(range, seed)) returns a range of which 
+elements are obtained by first assigning $(D seed) to an internal 
+variable $(D result). Then, for each element $(D x) in $(D range), 
+a call to $(D front) returns $(D fun(result, x)). Calling $(D popFront) 
+also updates $(D result) with the previous value of $(D front).
+
+The one-argument version $(D scan!(fun)(range)) works similarly, 
+but it uses the first element of the range as the seed (the range 
+must be non-empty).
+
+Parameters:
+    fun = one or more functions
+    r = an input range
+	seed = an initial seed (optional)
+	
+Returns:
+    A range with $(D fun) applied to the seed value and the front of $(D r).
+	
+	If there is more than one $(D fun), the element type will be $(D Tuple) 
+	containing one element for each $(D fun).
+
+See_Also:
+    $(WEB en.wikipedia.org/wiki/Fold_(higher-order_function), Fold (higher-order function))
+
+    $(LREF fold) is equivalent to applying $(D back) to the result of scan.
++/
+template scan(fun...)
+	if (fun.length >= 1)
+{
+    import std.meta : staticMap;
+	import std.functional : binaryFun;
+
+    alias binfuns = staticMap!(binaryFun, fun);
+	
+    static if (fun.length > 1)
+	{
+        import std.typecons : tuple, isTuple;
+	}
+
+    auto scan(R)(R r)
+		if (isInputRange!R)
+    {
+        import std.exception : enforce;
+		import std.range.primitives : isInputRange, ElementType, ForeachType;
+		import std.traits : Select;
+		import std.algorithm.iteration : ReduceSeedType;
+		
+        alias E = Select!(isInputRange!R, ElementType!R, ForeachType!R);
+        alias Args = staticMap!(ReduceSeedType!E, binfuns);
+
+        static if (isInputRange!R)
+        {
+            enforce(!r.empty, "Cannot scan an empty input range w/o an explicit seed value.");
+        }
+
+		auto result = Args.init;
+		
+		return scanImpl!(true)(r, result);
+    }
+
+	auto scan(R, S...)(R r, S seed)
+		if (isInputRange!R)
+    {
+        static if (fun.length == 1)
+		{
+            return scanPreImpl(r, seed);
+		}
+        else static if (fun.length > 1)
+        {
+			static if (S.length == 1)
+			{
+				import std.algorithm.internal : algoFormat;
+				
+				static assert(isTuple!(S[0]), algoFormat("Seed %s should be a 
+														 Tuple", S.stringof));
+				
+				return scanPreImpl(r, seed[0].expand);
+			}
+			else static if (S.length == fun.length)
+			{
+				return scanPreImpl(r, seed);
+			}
+			else
+			{
+				assert(0, "S must be a tuple or match fun.length");
+			}
+        }
+		else
+		{
+			assert(0, "Must provide some functions");
+		}
+    }
+
+    private auto scanPreImpl(R, Args...)(R r, ref Args args)
+    {
+		import std.traits : Unqual;
+	
+        alias Result = staticMap!(Unqual, Args);
+		
+        static if (is(Result == Args))
+		{
+            alias result = args;
+		}
+        else
+		{
+            Result result = args;
+		}
+			
+        return scanImpl!(false)(r, result);
+    }
+
+    private auto scanImpl(bool mustInitialize, R, Args...)(R r, ref Args args)
+		if (isInputRange!R)
+    {
+        import std.algorithm.internal : algoFormat;
+		
+        static assert(Args.length == fun.length,
+					  algoFormat("Seed %s does not have the correct amount of fields (should be %s)", 
+			                     Args.stringof, fun.length));
+        alias E = Select!(isInputRange!R, ElementType!R, ForeachType!R);
+
+
+		
+		static if (Args.length > 1)
+		{
+			import std.typecons : Tuple;
+		
+			alias TL = fillAliasSeq!(mustInitialize, R, E, binfuns);
+			Tuple!(TL) result;
+		}
+
+		static if (mustInitialize)
+		{
+			static if (Args.length == 1)
+			{
+				return scanResult!(true, binfuns[0], R)(r);
+			}
+			else
+			{
+				foreach (i, f; binfuns)
+				{
+					result[i] = scanResult!(true, f, R)(r);
+				}
+			
+				return result;
+			}
+		}
+		else
+		{
+			static if (Args.length == 1)
+			{
+				return scanResult!(false, binfuns[0], R, Args)(r, args);
+			}
+			else
+			{
+				foreach (i, f; binfuns)
+				{
+					result[i] = scanResult!(false, f, R, Args[i])(r, args[i]);
+				}
+			
+				return result;
+			}
+		}
+    }
+}
+
+///
+@safe unittest
+{
+	int[] x = [1, 2, 5, 9];
+	alias f = (a, b) => sum([a, b]);
+
+	assert(cmp(x.scan!(f), [1, 3, 8, 17]) == 0);
+}
+
+/**
+Functions can be string lambdas.
+*/
+@safe unittest
+{
+	int[] x = [1, 2, 5, 9];
+
+	assert(cmp(x.scan!("a+b"), [1, 3, 8, 17]) == 0);
+}
+
+@safe unittest
+{
+	float[] x = [1.0, 2.0, 5.0, 9.0];
+	alias f = (a, b) => sum([a, b]);
+
+	assert(approxEqual(x.scan!(f), [1.0, 3.0, 8.0, 17.0]));
+}
+
+unittest
+{
+	import std.experimental.ndslice : sliced;
+
+	int[] a = [1, 2, 5, 9];
+	auto x = a.sliced(4);
+	alias f = (a, b) => sum([a, b]);
+
+	assert(cmp(x.scan!(f), [1, 3, 8, 17]) == 0);
+}
+
+unittest
+{
+	import std.experimental.ndslice : sliced, byElement, pack;
+
+	int[] a = [1, 2, 5, 9];
+	auto x = a.sliced(2, 2);
+	alias f = (a, b) => sum([a, b]);
+	
+	assert(cmp(x.byElement.scan!(f), [1, 3, 8, 17]) == 0);
+	
+	auto y = x.pack!(1);
+	writeln(y);
+	//can't figure out how to get the slice to apply by dimension
+	//auto y = x.scan!(f);
+	//assert(cmp(y[0], [1, 3]) == 0);
+	//assert(cmp(y[1], [5, 14]) == 0);
+}
+
+@safe unittest
+{
+	float[] x = [0.1, -0.1, 0.1, -0.1];
+	float seed = 1;
+	alias f = (a, b) => sum([a, b], seed);
+
+	assert(approxEqual(x.scan!(f), [0.1, 1, 2.1, 3])); //note that f is not
+															//applied to the 
+															//first front
+}
+
+@safe unittest
+{
+	float[] x = [0.1, -0.1, 0.1, -0.1];
+	float seed = 1;
+	alias f = (a, b) => sum([a, b], seed);
+
+	assert(approxEqual(x.scan!(f)(0.0), [1.1, 2, 3.1, 4]));//note that
+																//is different
+																//from above
+																//due to seed
+}
+
+@safe unittest
+{
+	float[] x = [0.1, -0.1, 0.1, -0.1];
+	alias f = (a, b) => (1 + a) * (1 + b) - 1;
+
+	assert(approxEqual(x.scan!(f), [0.1, -0.01, 0.089, -0.0199]));
+}
+
+@safe unittest
+{
+	float[] x = [0.1, -0.1, 0.1, -0.1];
+	alias f = (a, b) => a * b;
+
+	auto y = x.scan!(f);
+
+	assert(approxEqual(x.scan!(f), [0.1, -0.01, -0.001, 0.0001]));
+}
+
+@safe unittest
+{
+	int[] x = [1, 2, 3, 4, 5];
+	alias f = (a, b) => sum([a, b]);
+
+	assert(cmp(x.scan!(f)(6), [7, 9, 12, 16, 21]) == 0);
+}
+
+@safe unittest
+{
+	float[] x = [0.1, -0.1, 0.1, -0.1];
+	alias f = (a, b) => a * b;
+
+	assert(approxEqual(x.scan!(f)(0.0), [0, 0, 0, 0]));
+}
+
+@safe unittest
+{
+	float[] x = [0.1, -0.1, 0.1, -0.1];
+	alias f = (a, b) => a * b;
+
+	assert(approxEqual(x.scan!(f)(1.0), [0.1, -0.01, -0.001, 0.0001]));
+}
+
+/**
+Multiple functions can be passed to $(D scan). In that case, the
+element type of $(D map) is a tuple containing one element for each
+function.
+*/
+@safe unittest
+{
+	int[] x = [1, 2, 5, 9];
+	alias f = (a, b) => a + b;
+	alias g = (a, b) => a * b;
+	
+	auto y = x.scan!(f, g);
+	assert(cmp(y[0], [1, 3, 8, 17]) == 0);
+	assert(cmp(y[1], [1, 2, 10, 90]) == 0);
+}
+
+@safe unittest
+{
+	int[] x = [1, 2, 5, 9];
+	
+	auto y = x.scan!("a + b", "a * b");
+	assert(cmp(y[0], [1, 3, 8, 17]) == 0);
+	assert(cmp(y[1], [1, 2, 10, 90]) == 0);
+}
+
+
+@safe unittest
+{
+	import std.typecons : tuple;
+	
+	int[] x = [1, 2, 5, 9];
+	alias f = (a, b) => a + b;
+	alias g = (a, b) => a * b;
+	
+	auto y = x.scan!(f, g)(tuple(0, 1));
+	assert(cmp(y[0], [1, 3, 8, 17]) == 0);
+	assert(cmp(y[1], [1, 2, 10, 90]) == 0);
+}
+
+@safe unittest
+{
+	import std.typecons : tuple;
+	
+	int[] x = [1, 2, 5, 9];
+	alias f = (a, b) => a + b;
+	alias g = (a, b) => a * b;
+	
+	auto y = x.scan!(f, g)(0, 1); //function not working for non-tuple
+	assert(cmp(y[0], [1, 3, 8, 17]) == 0);
+	assert(cmp(y[1], [1, 2, 10, 90]) == 0);
+}
+
+@safe unittest
+{
+	import std.algorithm.comparison: min, max;
+	
+	int[] x = [1, 2, 3, 4, 5];
+	auto y = x.scan!(min, max);
+	
+	assert(cmp(y[0], [1, 1, 1, 1, 1]) == 0);
+	assert(cmp(y[1], [1, 2, 3, 4, 5]) == 0);
+}
+
+@safe unittest
+{	
+	import std.algorithm.comparison: min, max;
+	import std.typecons : tuple;
+	
+	int[] x = [1, 2, 3, 4, 5];
+	auto y = x.scan!(min, max)(tuple(0, 7));
+	
+	assert(cmp(y[0], [0, 0, 0, 0, 0]) == 0);
+	assert(cmp(y[1], [7, 7, 7, 7, 7]) == 0);
+}
+
+@safe unittest
+{	
+	import std.algorithm.comparison: min, max;
+	import std.typecons : tuple;
+	
+	int[] x = [1, 2, 3, 4, 5];
+	auto y = x.scan!(min, max)(0, 7);
+	
+	assert(cmp(y[0], [0, 0, 0, 0, 0]) == 0);
+	assert(cmp(y[1], [7, 7, 7, 7, 7]) == 0);
+}
