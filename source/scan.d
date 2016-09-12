@@ -575,3 +575,30 @@ private struct scanResult(bool mustInitialize, alias fun, Range,
 	static assert (is(typeof(r2) == typeof(r)));
 	assert(cmp(r, r2) == 0);
 }
+
+private template fillAliasSeq(bool mustInitialize, R, E, f...)
+{
+	//See discussion at
+	//https://forum.dlang.org/post/vemmxwitowsyiqkjfqor@forum.dlang.org
+
+	import std.meta : AliasSeq;
+	
+	static if (f.length == 0) {
+		alias fillAliasSeq = AliasSeq!();
+	}
+	else {
+		alias fillAliasSeq = AliasSeq!(
+								scanResult!(mustInitialize, f[0], R, E), 
+								fillAliasSeq!(mustInitialize, R, E, f[1..$])
+									   );
+	}
+}
+
+unittest
+{
+	int[] x = [1, 2, 5, 9];
+	alias f = (a, b) => a + b;
+	alias g = (a, b) => a * b;
+	
+	alias TL = fillAliasSeq!(false, int[], int, f, g);
+}
