@@ -981,3 +981,48 @@ function.
 	assert(cmp(y[0], [0, 0, 0, 0, 0]) == 0);
 	assert(cmp(y[1], [7, 7, 7, 7, 7]) == 0);
 }
+
+/++
+Returns the cumulative sum of a range.
+
+The sum at each point is calculated using the 
+$(LREF std.algorithm.iteration.sum) function. 
+
+Parameters:
+    r = an input range
+	seed = a seed to pass to sum (optional)
+	
+Returns:
+    A range containing the cumulative sum. 
+
+See_Also:
+    $(WEB en.wikipedia.org/wiki/Prefix_sumn), Prefix Sum)
++/
+auto cumsum(R, S...)(R r, S seed)
+	if (isInputRange!R)
+{
+	static if (S.length == 0)
+	{
+		alias f = (a, b) => sum([a, b]);
+		return r.scan!(f);
+	}
+	else static if (S.length == 1)
+	{
+		alias f = (a, b) => sum([a, b], seed);
+		return r.scan!(f)(seed);
+	}
+	else
+	{
+		assert(0, "S must have length of 0 or 1");
+	}
+}
+
+///
+@safe unittest
+{
+	int[] x = [1, 2, 3, 4, 5];
+
+	assert(cmp(cumsum(x), [1, 3, 6, 10, 15]) == 0);
+	assert(cmp(cumsum(x, 0), [1, 3, 6, 10, 15]) == 0);
+	assert(approxEqual(cumsum(x, 0f), [1.0, 3.0, 6.0, 10.0, 15.0]));
+}
