@@ -1026,3 +1026,56 @@ auto cumsum(R, S...)(R r, S seed)
 	assert(cmp(cumsum(x, 0), [1, 3, 6, 10, 15]) == 0);
 	assert(approxEqual(cumsum(x, 0f), [1.0, 3.0, 6.0, 10.0, 15.0]));
 }
+
+/++
+Returns the cumulative product of a range.
+
+Parameters:
+    r = an input range
+	seed = a seed to pass (optional). Note that when multiplying, it can be
+		preferable to pass a 1, rather than a 0 as is common with summing.
+	
+Returns:
+    A range containing the cumulative product. 
+
+See_Also:
+    $(WEB en.wikipedia.org/wiki/Prefix_sumn), Prefix Sum)
++/
+auto cumprod(R, S...)(R r, S seed)
+	if (isInputRange!R)
+{
+	alias f = (a, b) => a * b;
+
+	static if (S.length == 0)
+	{
+		return scan!(f)(r);
+	}
+	else static if (S.length == 1)
+	{
+		return r.scan!(f)(seed);
+	}
+	else
+	{
+		assert(0, "S must have length of 0 or 1");
+	}
+}
+
+///
+@safe unittest
+{
+	float[] x = [0.1, -0.1, 0.1, -0.1];
+
+	assert(approxEqual(cumprod(x), [0.1, -0.01, -0.001, 0.0001]));
+}
+
+@safe unittest
+{
+	float[] x = [0.1, -0.1, 0.1, -0.1];
+
+	real seed = 1.0;
+	auto y = cumprod(x, seed);
+	
+	real[] test = [0.1, -0.01, -0.001, 0.0001];
+	
+	assert(approxEqual(y, test));
+}
