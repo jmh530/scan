@@ -1,8 +1,8 @@
 {
 	"name": "scan",
-	"description": "A minimal D application.",
-	"copyright": "Copyright © 2016, John",
-	"authors": ["John"],
+	"description": "Implements the scan function for the D language.",
+	"copyright": "Copyright © 2016, John Michael Hall",
+	"authors": ["John Michael Hall"],
 	"dependencies": {
 	}
 }
