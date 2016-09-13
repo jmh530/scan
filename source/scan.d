@@ -4,13 +4,10 @@ import std.array;
 import std.traits : Select, Unqual;
 import std.range.primitives : isInputRange, ElementType, ForeachType;
 
-import std.stdio : writeln;
-
 version(unittest)
 {
 	import std.algorithm : sum, cmp;
 	import std.math : approxEqual;
-	import std.stdio : writeln;
 }
 
 private struct scanResult(bool mustInitialize, alias fun, Range, 
@@ -824,8 +821,7 @@ unittest
 	
 	assert(cmp(x.byElement.scan!(f), [1, 3, 8, 17]) == 0);
 	
-	auto y = x.pack!(1);
-	writeln(y);
+	//auto y = x.pack!(1);
 	//can't figure out how to get the slice to apply by dimension
 	//auto y = x.scan!(f);
 	//assert(cmp(y[0], [1, 3]) == 0);
