@@ -1,4 +1,4 @@
-module scan;
+module scand;
 
 import std.array;
 import std.traits : Select, Unqual;
