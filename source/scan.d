@@ -999,6 +999,8 @@ See_Also:
 auto cumsum(R, S...)(R r, S seed)
 	if (isInputRange!R)
 {
+	import std.algorithm.iteration : sum;
+
 	static if (S.length == 0)
 	{
 		alias f = (a, b) => sum([a, b]);
