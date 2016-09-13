@@ -1,6 +1,9 @@
 #scan
 ====
-Implements the scan function for the D language
+Implements the scan function for the D language to provide intermediate
+calculations for std.algorithm's fold.
+
+Also implements cumulative sum and product.
 
 ## Installation Notes
 -------
