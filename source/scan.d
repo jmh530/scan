@@ -1,3 +1,5 @@
+module scan;
+
 import std.array;
 import std.traits : Select, Unqual;
 import std.range.primitives : isInputRange, ElementType, ForeachType;
