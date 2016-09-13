@@ -7,7 +7,9 @@ Also implements cumulative sum and product.
 
 ## Installation Notes
 -------
-Use dub
+Using dub, add `"scan": "~>=0.1.0",` to the dependencies section of dub.json
+file (or relevant adjustments for dub.sdl).
+
 
 ## Example
 -------
