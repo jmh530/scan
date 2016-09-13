@@ -1,8 +1,9 @@
 {
 	"name": "scan",
+	"license": "MIT",
 	"description": "Implements the scan function for the D language.",
 	"copyright": "Copyright © 2016, John Michael Hall",
-	"authors": ["John Michael Hall"],
-	"dependencies": {
-	}
+	"authors": [
+		"John Michael Hall"
+	],
 }
